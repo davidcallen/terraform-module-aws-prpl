@@ -1,2 +1,5 @@
 # terraform-module-aws-prpl
-Terraform module to host the PRPL application on EC2
+                       
+Terraform module for provisioning a PRPL EC2 instance and other resources.
+
+Optional HighAvailability/Failover setup using HTTP Load Balancer.

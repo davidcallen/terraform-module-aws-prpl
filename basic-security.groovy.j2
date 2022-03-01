@@ -1,0 +1,28 @@
+#!groovy
+import hudson.security.*
+import prpl.model.*
+
+def instance = PRPL.getInstance()
+def hudsonRealm = new HudsonPrivateSecurityRealm(false)
+def users = hudsonRealm.getAllUsers()
+users_s = users.collect { it.toString() }
+
+// Create the admin user account if it doesn't already exist.
+if ("{{ prpl_admin_username }}" in users_s) {
+    println "Admin user already exists - updating password"
+
+    def user = hudson.model.User.get('{{ prpl_admin_username }}');
+    def password = hudson.security.HudsonPrivateSecurityRealm.Details.fromPlainPassword('{{ prpl_admin_password }}')
+    user.addProperty(password)
+    user.save()
+}
+else {
+    println "--> creating local admin user"
+
+    hudsonRealm.createAccount('{{ prpl_admin_username }}', '{{ prpl_admin_password }}')
+    instance.setSecurityRealm(hudsonRealm)
+
+    def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
+    instance.setAuthorizationStrategy(strategy)
+    instance.save()
+}

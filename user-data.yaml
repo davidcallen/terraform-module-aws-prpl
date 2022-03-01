@@ -1,0 +1,99 @@
+#cloud-config
+preserve_hostname: false  # Feels wrong setting this to false, but otherwise will preserve the aws internal hostname "ip-99-99-99-99"
+hostname: ${aws_ec2_instance_name}
+fqdn: ${aws_ec2_instance_hostname_fqdn}
+manage_etc_hosts: true
+
+write_files:
+- path: /usr/local/etc/prpl-initial-startup.config
+  owner: root:root
+  permissions: '0600'
+  content: |
+    #!/bin/bash
+    AWS_EC2_INSTANCE_NAME=${aws_ec2_instance_name}
+    AWS_EC2_INSTANCE_HOSTNAME_FQDN=${aws_ec2_instance_hostname_fqdn}
+    AWS_REGION=${aws_region}
+    AWS_ZONES=(${aws_zones})
+    PRPL_MOTD_MSG="Welcome to ParkRun Points League : PRPL"
+    PRPL_INIT_DEBUG_ENABLED=TRUE  # unset this var to disable
+
+- path: /usr/local/etc/prpl-initial-startup_route53.config
+  owner: root:root
+  permissions: '0600'
+  content: |
+    #!/bin/bash
+    PRPL_ROUTE53_ENABLED=${route53_enabled}
+    PRPL_ROUTE53_DIRECT_DNS_UPDATE_ENABLED=${route53_direct_dns_update_enabled}
+    PRPL_ROUTE53_PRIVATE_HOSTED_ZONE_ID=${route53_private_hosted_zone_id}
+
+- path: /usr/local/etc/prpl-initial-startup_domain-join.config
+  owner: root:root
+  permissions: '0600'
+  content: |
+    DOMAIN_HOST_NAME_SHORT_AD_FRIENDLY=${domain_host_name_short_ad_friendly}
+    DOMAIN_HOST_NAME=${aws_ec2_instance_name}
+    DOMAIN_HOST_FQDN=${aws_ec2_instance_hostname_fqdn}
+    DOMAIN_NAME=${domain_name}
+    DOMAIN_REALM_NAME=${domain_realm_name}
+    DOMAIN_NETBIOS_NAME=${domain_netbios_name}
+    DOMAIN_JOIN_USER_NAME=${domain_join_user_name}
+    DOMAIN_JOIN_USER_PASSWORD="${domain_join_user_password}"
+    DOMAIN_LOGIN_ALLOWED_GROUPS="${domain_login_allowed_groups}"
+    DOMAIN_LOGIN_ALLOWED_USERS="${domain_login_allowed_users}"
+
+- path: /usr/local/etc/prpl-initial-startup_cloudwatch.config
+  owner: root:root
+  permissions: '0640'
+  content: |
+    #!/bin/bash
+    CLOUDWATCH_ENABLED=${cloudwatch_enabled}
+    CLOUDWATCH_REFRESH_INTERVAL_SECS=${cloudwatch_refresh_interval_secs}
+
+- path: /usr/local/etc/prpl-initial-startup_telegraf.config
+  owner: telegraf:telegraf
+  permissions: '0640'
+  content: |
+    #!/bin/bash
+    TELEGRAF_ENABLED=${telegraf_enabled}
+    TELEGRAF_INFLUXDB_URL="${telegraf_influxdb_url}"
+    TELEGRAF_INFLUXDB_PASSWORD_SECRET_ID="${telegraf_influxdb_password_secret_id}"
+    TELEGRAF_INFLUXDB_RETENTION_POLICY=${telegraf_influxdb_retention_policy}
+    TELEGRAF_INFLUXDB_HTTPS_INSECURE_SKIP_VERIFY=${telegraf_influxdb_https_insecure_skip_verify}
+
+- path: /usr/local/etc/prpl-initial-startup_mount-file-system.config
+  owner: root:root
+  permissions: '0600'
+  content: |
+    #!/bin/bash
+    FILE_SYSTEM_MOUNT_POINT=/mnt/prpl
+    FILE_SYSTEM_MOUNT_TARGET=/var/lib/prpl
+    FILE_SYSTEM_MOUNT_OWNER_USER=${prpl_linux_user_name}
+    FILE_SYSTEM_MOUNT_OWNER_GROUP=${prpl_linux_user_group}
+    FILE_SYSTEM_AWS_EFS_ID=${aws_efs_id}
+    FILE_SYSTEM_AWS_EBS_DEVICE_NAME=${ebs_device_name}
+    AWS_ASG_NAME=${aws_asg_name}
+    CHECK_EFS_ASG_MAX_ATTEMPTS=${check_efs_asg_max_attempts}
+
+- path: /usr/local/etc/prpl-initial-startup_app.config
+  owner: prpl:prpl
+  permissions: '0640'
+  content: |
+    #!/bin/bash
+    APP_LINUX_USER_NAME=${prpl_linux_user_name}
+    APP_LINUX_USER_GROUP=${prpl_linux_user_group}
+    APP_SSH_PUBLIC_KEY="${prpl_user_ssh_public_key}"
+    APP_SYSTEMD_SERVICE_NAME="prpl"
+    #   APP_CONFIG_S3_BUCKET_NAME="s3://$ { prpl_config_s3_bucket_name }"
+    APP_PRPL_DB_ADMIN_USER_PASSWORD_SECRET_ID="${prpl_db_admin_user_password_secret_id}"
+    APP_PRPL_ADMIN_USER_PASSWORD_SECRET_ID="${prpl_admin_user_password_secret_id}"
+
+#- path: /var/lib/prpl/prpl.yaml
+#  owner: prpl:prpl
+#  permissions: '0660'
+#  encoding: b64
+#  content: $ { prpl_jcasc_config_file_contents_base64 }
+
+runcmd:
+  - /usr/local/bin/prpl-initial-startup_all.sh
+
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
