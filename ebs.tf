@@ -17,5 +17,5 @@ resource "aws_volume_attachment" "prpl-data-ebs" {
   count       = (var.ha_high_availability_enabled == false && var.disk_prpl_home.enabled == false && var.disk_prpl_home.type == "EBS") ? 1 : 0
   device_name = "/dev/sdh"
   volume_id   = aws_ebs_volume.prpl-data-ebs[0].id
-  instance_id = aws_instance.prpl[0].id
+  instance_id = (var.ha_high_availability_enabled == false) ? aws_instance.prpl[0].id : ""
 }

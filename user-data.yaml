@@ -86,12 +86,10 @@ write_files:
     #   APP_CONFIG_S3_BUCKET_NAME="s3://$ { prpl_config_s3_bucket_name }"
     APP_PRPL_DB_ADMIN_USER_PASSWORD_SECRET_ID="${prpl_db_admin_user_password_secret_id}"
     APP_PRPL_ADMIN_USER_PASSWORD_SECRET_ID="${prpl_admin_user_password_secret_id}"
-
-#- path: /var/lib/prpl/prpl.yaml
-#  owner: prpl:prpl
-#  permissions: '0660'
-#  encoding: b64
-#  content: $ { prpl_jcasc_config_file_contents_base64 }
+    DB_HOSTNAME=${db_hostname}
+    DB_PRPL_DATABASE_NAME=${db_prpl_database_name}
+    DB_PRPL_USERNAME=${db_prpl_username}
+    DB_PRPL_PASSWORD_SECRET_ID=${db_prpl_password_secret_id}
 
 runcmd:
   - /usr/local/bin/prpl-initial-startup_all.sh

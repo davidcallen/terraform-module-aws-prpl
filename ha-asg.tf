@@ -2,24 +2,16 @@
 # HighAvailablity/Failover AutoScalingGroup for PRPL
 # ---------------------------------------------------------------------------------------------------------------------
 locals {
-  asg_name = local.name
+  target_group_arns = (var.ha_high_availability_enabled) ? concat((var.ha_public_load_balancer.arn != "") ? [aws_lb_target_group.prpl-public-https[0].arn] : [], (var.ha_private_load_balancer.arn != "") ? [aws_lb_target_group.prpl-private-https[0].arn] : []) : []
+  asg_name          = (var.ha_high_availability_enabled) ? local.name : ""
 }
 resource "aws_autoscaling_group" "prpl" {
-  count = (var.ha_high_availability_enabled) ? 1 : 0
-  name  = local.asg_name
-  target_group_arns = concat(
-    ((var.ha_high_availability_enabled && var.ha_public_load_balancer.arn != "")
-      ? [
-        aws_lb_target_group.prpl-public-https[count.index].arn
-    ] : []),
-    ((var.ha_high_availability_enabled && var.ha_private_load_balancer.arn != "")
-      ? [
-        aws_lb_target_group.prpl-private-https[count.index].arn
-    ] : [])
-  )
-  max_size = var.ha_auto_scaling_group.max_size
-  min_size = var.ha_auto_scaling_group.min_size
-  # desired_capacity          = var.ha_auto_scaling_group.scaling_policy.desired_capacity
+  count                     = (var.ha_high_availability_enabled) ? 1 : 0
+  name                      = local.asg_name
+  target_group_arns         = local.target_group_arns
+  max_size                  = var.ha_auto_scaling_group.max_size
+  min_size                  = var.ha_auto_scaling_group.min_size
+  desired_capacity          = var.ha_auto_scaling_group.desired_capacity
   health_check_grace_period = var.ha_auto_scaling_group.health_check_grace_period
   health_check_type         = "ELB"
   force_delete              = false
@@ -29,14 +21,34 @@ resource "aws_autoscaling_group" "prpl" {
   default_cooldown     = var.ha_auto_scaling_group.default_cooldown # Start the failover instance quickly
   termination_policies = ["OldestInstance"]
   suspended_processes  = var.ha_auto_scaling_group.suspended_processes
-  tags = [
-    {
-      key                 = "Name"
-      value               = local.asg_name
-      propagate_at_launch = true
-    }
-  ]
+  tag {
+    key                 = "Name"
+    value               = local.asg_name
+    propagate_at_launch = true
+  }
+  depends_on = [aws_efs_mount_target.prpl-home-efs, aws_efs_file_system.prpl-home-efs, aws_db_instance.prpl]
 }
+
+// Currently dont want autoscaling - just the single instance. This simplifies any issues could have with multi-writers connected to same EFS storage.
+//
+//resource "aws_autoscaling_policy" "ta-website" {
+//  count                       = (var.ha_high_availability_enabled) ? 1 : 0
+//
+//  name                        = "${local.asg_name}-scaling-policy"
+//  autoscaling_group_name      = aws_autoscaling_group.ta-website[0].name
+//  policy_type                 = "TargetTrackingScaling"
+//  estimated_instance_warmup   = 60
+//  target_tracking_configuration {
+//    predefined_metric_specification {
+//      predefined_metric_type  = "ALBRequestCountPerTarget"
+//      # resource_label e.g.  "app/ta-core-public-alb-public/cf95e10757d54ca5/targetgroup/ta-core-public-prod-public-https/cc0f418b5616e43f"
+//      resource_label          = "${var.ha_public_load_balancer.arn_suffix}/${aws_lb_target_group.ta-website-public-https[0].arn_suffix}"
+//    }
+//    target_value              = 50
+//    disable_scale_in          = false
+//  }
+//}
+
 locals {
   vpc_security_group_ids_storage = (var.disk_prpl_home.enabled && var.disk_prpl_home.type == "EFS") ? [aws_security_group.prpl-home-efs[0].id] : []
   vpc_security_group_ids         = concat([aws_security_group.prpl.id], local.vpc_security_group_ids_storage)
@@ -48,7 +60,7 @@ resource "aws_launch_configuration" "prpl" {
   image_id             = var.aws_ami_id
   instance_type        = var.aws_instance_type
   iam_instance_profile = var.iam_instance_profile
-  security_groups      = [aws_security_group.prpl.id]
+  security_groups      = local.vpc_security_group_ids
   key_name             = var.aws_ssh_key_name
   root_block_device {
     delete_on_termination = true
@@ -82,6 +94,10 @@ resource "aws_launch_configuration" "prpl" {
     // prpl_config_s3_bucket_name                = aws_s3_bucket.prpl-config-files.bucket
     prpl_db_admin_user_password_secret_id        = var.prpl_db_admin_user_password_secret_id
     prpl_admin_user_password_secret_id           = var.prpl_admin_user_password_secret_id
+    db_hostname                                  = (var.database.type == "RDS") ? aws_db_instance.prpl[0].endpoint : var.database.db_hostname
+    db_prpl_database_name                        = var.database.db_prpl_database_name
+    db_prpl_username                             = var.database.db_prpl_username
+    db_prpl_password_secret_id                   = var.database.db_prpl_password_secret_id
     cloudwatch_enabled                           = var.cloudwatch_enabled ? "TRUE" : "FALSE"
     cloudwatch_refresh_interval_secs             = var.cloudwatch_refresh_interval_secs
     telegraf_enabled                             = var.telegraf_enabled ? "TRUE" : "FALSE"

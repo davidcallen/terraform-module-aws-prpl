@@ -38,6 +38,11 @@ variable "route53_direct_dns_update_enabled" {
   default     = false
   type        = bool
 }
+variable "route53_public_hosted_zone_id" {
+  description = "Route53 Public Hosted Zone ID (if in use)."
+  default     = ""
+  type        = string
+}
 variable "route53_private_hosted_zone_id" {
   description = "Route53 Private Hosted Zone ID (if in use)."
   default     = ""
@@ -46,15 +51,12 @@ variable "route53_private_hosted_zone_id" {
 variable "environment" {
   description = "Environment information e.g. account IDs, public/private subnet cidrs"
   type = object({
-    name = string
-    # Environment Account IDs are used for giving permissions to those Accounts for resources such as AMIs
-    account_id = string
-    # These cidrs are needed to setup SecurityGroup rules, and routes for cross-account access.
-    cidr_block                  = string
-    private_subnets_cidr_blocks = list(string)
-    public_subnets_cidr_blocks  = list(string)
-    resource_name_prefix        = string
-    # For some environments  (e.g. Core, Customer/production) want to protect against accidental deletion of resources
+    name                         = string # Environment Account IDs are used for giving permissions to those Accounts for resources such as AMIs
+    account_id                   = string # These cidrs are needed to setup SecurityGroup rules, and routes for cross-account access.
+    cidr_block                   = string
+    private_subnets_cidr_blocks  = list(string)
+    public_subnets_cidr_blocks   = list(string)
+    resource_name_prefix         = string # For some environments  (e.g. Core, Customer/production) want to protect against accidental deletion of resources
     resource_deletion_protection = bool
     default_tags                 = map(string)
   })
@@ -72,15 +74,12 @@ variable "environment" {
 variable "vpc" {
   description = "VPC information. These are inputs to the VPC module github.com/terraform-aws-modules/terraform-aws-vpc.git"
   type = object({
-    vpc_id = string
-    # VPC cidr block. Must not overlap with other VPCs in this aws account or others within our organisation.
-    cidr_block = string
-    # List of VPC private subnet cidr blocks. Must not overlap with other VPCs in this aws account or others within our organisation.
-    private_subnets_cidr_blocks = list(string)
+    vpc_id                      = string # VPC cidr block. Must not overlap with other VPCs in this aws account or others within our organisation.
+    cidr_block                  = string
+    private_subnets_cidr_blocks = list(string) # Must not overlap with other VPCs in this aws account or others within our organisation.
     private_subnets_ids         = list(string)
-    # List of VPC public subnet cidr blocks. Must not overlap with other VPCs in this aws account or others within our organisation.
-    public_subnets_cidr_blocks = list(string)
-    public_subnets_ids         = list(string)
+    public_subnets_cidr_blocks  = list(string) # Must not overlap with other VPCs in this aws account or others within our organisation.
+    public_subnets_ids          = list(string)
   })
   default = {
     vpc_id                      = ""
@@ -102,11 +101,11 @@ variable "ha_public_load_balancer" {
     enabled    = bool
     arn        = string
     arn_suffix = string
+    hostname_fqdn = string
     port       = number
     ssl_cert = object({
-      use_amazon_provider = bool
-      # Has the overhead of needing external DNS verification to activate it
-      use_self_signed = bool
+      use_amazon_provider = bool # Has the overhead of needing external DNS verification to activate it
+      use_self_signed     = bool
     })
     alb_listener_arn      = string
     alb_listener_priority = number
@@ -114,8 +113,7 @@ variable "ha_public_load_balancer" {
     allowed_ingress_cidrs = object({
       https = list(string)
     })
-    disallow_ingress_internal_health_check_from_cidrs = list(string)
-    # Dont want users reaching internal healthcheck page
+    disallow_ingress_internal_health_check_from_cidrs = list(string) # Dont want users reaching internal healthcheck page
   })
   default = {
     enabled    = false
@@ -123,9 +121,8 @@ variable "ha_public_load_balancer" {
     arn_suffix = ""
     port       = 443
     ssl_cert = {
-      use_amazon_provider = true
-      # Has the overhead of needing external DNS verification to activate it
-      use_self_signed = false
+      use_amazon_provider = true # Has the overhead of needing external DNS verification to activate it
+      use_self_signed     = false
     }
     alb_listener_arn      = ""
     alb_listener_priority = 100
@@ -142,11 +139,11 @@ variable "ha_private_load_balancer" {
     enabled    = bool
     arn        = string
     arn_suffix = string
+    hostname_fqdn = string
     port       = number
     ssl_cert = object({
-      use_amazon_provider = bool
-      # Has the overhead of needing external DNS verification to activate it
-      use_self_signed = bool
+      use_amazon_provider = bool # Has the overhead of needing external DNS verification to activate it
+      use_self_signed     = bool
     })
     alb_listener_arn      = string
     alb_listener_priority = number
@@ -154,18 +151,17 @@ variable "ha_private_load_balancer" {
     allowed_ingress_cidrs = object({
       https = list(string)
     })
-    disallow_ingress_internal_health_check_from_cidrs = list(string)
-    # Dont want users reaching internal healthcheck page
+    disallow_ingress_internal_health_check_from_cidrs = list(string) # Dont want users reaching internal healthcheck page
   })
   default = {
     enabled    = false
     arn        = ""
     arn_suffix = ""
+    hostname_fqdn = ""
     port       = 443
     ssl_cert = {
-      use_amazon_provider = true
-      # Has the overhead of needing external DNS verification to activate it
-      use_self_signed = false
+      use_amazon_provider = true # Has the overhead of needing external DNS verification to activate it
+      use_self_signed     = false
     }
     alb_listener_arn      = ""
     alb_listener_priority = 100
@@ -186,10 +182,8 @@ variable "ha_auto_scaling_group" {
     check_efs_asg_max_attempts     = number
     max_size                       = number
     min_size                       = number
-    desired_capacity               = number
-    # This only makes sense when below scaling_policy.enabled = false
-    target_group_name_prefix = string
-    # Max 20 chars !! due to limitation on length of ASG TargetGroups which need to be unique
+    desired_capacity               = number # This only makes sense when below scaling_policy.enabled = false
+    target_group_name_prefix       = string # Max 20 chars !! due to limitation on length of ASG TargetGroups which need to be unique
   })
   default = {
     health_check_grace_period      = 300
@@ -199,9 +193,8 @@ variable "ha_auto_scaling_group" {
     check_efs_asg_max_attempts     = 60
     max_size                       = 3
     min_size                       = 1
-    desired_capacity               = -1
-    # This only makes sense when below scaling_policy.enabled = false
-    target_group_name_prefix = ""
+    desired_capacity               = -1 # This only makes sense when below scaling_policy.enabled = false
+    target_group_name_prefix       = ""
   }
 }
 
@@ -287,12 +280,10 @@ variable "disk_root" {
 variable "disk_prpl_home" {
   description = "Disk storage options for PRPL Home Dir. Will be mounted at /mnt/prpl and symlinked to /var/lib/prpl"
   type = object({
-    enabled = bool
-    type    = string
-    # EBS or EFS
+    enabled   = bool
+    type      = string # EBS or EFS
     encrypted = bool
-    size      = number
-    # In Gigabytes
+    size      = number # In Gigabytes
   })
   default = {
     enabled   = true
@@ -314,44 +305,6 @@ variable "allowed_egress_cidrs" {
     https             = list(string)
     telegraf_influxdb = list(string)
   })
-}
-variable "cloudwatch_alarm_default_sns_topic_arn" {
-  type    = string
-  default = ""
-}
-variable "cloudwatch_enabled" {
-  type    = bool
-  default = true
-}
-variable "cloudwatch_refresh_interval_secs" {
-  type    = number
-  default = 60
-}
-variable "telegraf_enabled" {
-  type    = bool
-  default = true
-}
-variable "telegraf_influxdb_url" {
-  type    = string
-  default = ""
-}
-variable "telegraf_influxdb_password_secret_id" {
-  type      = string
-  default   = ""
-  sensitive = true
-}
-variable "telegraf_influxdb_retention_policy" {
-  type    = string
-  default = "autogen"
-}
-variable "telegraf_influxdb_https_insecure_skip_verify" {
-  type    = bool
-  default = false
-}
-variable "global_default_tags" {
-  description = "Global default tags"
-  default     = {}
-  type        = map(string)
 }
 variable "prpl_linux_user_name" {
   description = "Linux user for running PRPL process under."
@@ -396,4 +349,127 @@ variable "prpl_admin_user_password_secret_id" {
   description = "AWS Secrets ID for password to login to PRPL application as 'admin' user."
   type        = string
   default     = ""
+}
+
+variable "database" {
+  description = "The database configuration."
+  type = object({
+    type                       = string # "RDS" or "SQLITE" or "MARIADB" ("MARIADB" for non-RDS ec2 mariadb instance)
+    aws_instance_type          = string # e.g. db.t3.micro      (t3 is 2 vCPU, t2 is 1 vCPU)
+    engine                     = string # mariadb | mysql
+    engine_version             = string
+    db_master_password         = string
+    db_hostname                = string
+    db_prpl_database_name      = string
+    db_prpl_username           = string
+    db_prpl_password_secret_id = string
+    db_cloudwatch_role_arn     = string
+    allowed_ingress_cidrs      = list(string)
+  })
+  default = {
+    type                       = "RDS"
+    aws_instance_type          = ""
+    engine                     = "mariadb"
+    engine_version             = "10.4.8"
+    db_master_password         = ""
+    db_hostname                = ""
+    db_prpl_database_name      = ""
+    db_prpl_username           = ""
+    db_prpl_password_secret_id = ""
+    db_cloudwatch_role_arn     = ""
+    allowed_ingress_cidrs      = []
+  }
+}
+variable "backups" {
+  description = "Backup config for AWS Backups service"
+  type = object({
+    backup_role_arn = string
+    rds = object({
+      retention_period         = number
+      window                   = string
+      delete_automated_backups = bool
+    })
+    plans = list(object({
+      name = string
+      # Cron style schedule. See https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html
+      schedule = string
+      # Start within X hours
+      start_window = number
+      # The amount of time AWS Backup attempts a backup before canceling the job and returning an error. (must be at least 60 mins more than start_window)
+      completion_window = number
+      lifecycle = object({
+        # Days after creation that a recovery point is moved to cold storage.
+        cold_storage_after = number
+        # Days after creation that a recovery point is deleted.
+        delete_after = number
+      })
+    }))
+  })
+  default = {
+    backup_role_arn = ""
+    rds = {
+      retention_period         = 10
+      window                   = ""
+      delete_automated_backups = false
+    }
+    plans = [
+      {
+        name              = "daily"
+        schedule          = "cron(0 4 ? * MON-FRI *)" # Daily at 4 a.m.
+        start_window      = 480                       # Start within 8 hours
+        completion_window = 541                       # The amount of time AWS Backup attempts a backup before canceling the job and returning an error. (must be at least 60 mins more than start_window)
+        lifecycle = {
+          cold_storage_after = 7   # Days after creation that a recovery point is moved to cold storage.
+          delete_after       = 365 # Days after creation that a recovery point is deleted.
+        }
+      },
+      {
+        name              = "weekly"
+        schedule          = "cron(0 5 ? * 2 *)" # Weekly on Tuesday at 5 a.m.
+        start_window      = 480                 # Start within 8 hours
+        completion_window = 541                 # The amount of time AWS Backup attempts a backup before canceling the job and returning an error. (must be at least 60 mins more than start_window)
+        lifecycle = {
+          cold_storage_after = 7   # Days after creation that a recovery point is moved to cold storage.
+          delete_after       = 365 # Days after creation that a recovery point is deleted.
+        }
+      }
+    ]
+  }
+}
+variable "cloudwatch_alarm_default_sns_topic_arn" {
+  type    = string
+  default = ""
+}
+variable "cloudwatch_enabled" {
+  type    = bool
+  default = true
+}
+variable "cloudwatch_refresh_interval_secs" {
+  type    = number
+  default = 60
+}
+variable "telegraf_enabled" {
+  type    = bool
+  default = true
+}
+variable "telegraf_influxdb_url" {
+  type    = string
+  default = ""
+}
+variable "telegraf_influxdb_password_secret_id" {
+  type    = string
+  default = ""
+}
+variable "telegraf_influxdb_retention_policy" {
+  type    = string
+  default = "autogen"
+}
+variable "telegraf_influxdb_https_insecure_skip_verify" {
+  type    = bool
+  default = false
+}
+variable "global_default_tags" {
+  description = "Global default tags"
+  default     = {}
+  type        = map(string)
 }

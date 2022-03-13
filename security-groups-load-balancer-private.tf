@@ -6,7 +6,7 @@
 resource "aws_security_group_rule" "prpl-alb-private-allow-egress-http-internal" {
   count             = (var.ha_high_availability_enabled && var.ha_private_load_balancer.enabled && var.ha_private_load_balancer.port != var.server_listening_port) ? 1 : 0
   type              = "egress"
-  description       = "http internal"
+  description       = "http internal for access from ALB"
   from_port         = var.server_listening_port
   to_port           = var.server_listening_port
   protocol          = "tcp"

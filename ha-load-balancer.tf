@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------------------------------------------------
-# Application Load Balancers
+# High-Availability/Failover - Application Load Balancer
 # ---------------------------------------------------------------------------------------------------------------------
 locals {
   # Attempts to adhere to AWS requirement of a unique TargetGroup name that is less than 32 chars
@@ -27,6 +27,80 @@ resource "aws_acm_certificate" "prpl-amazon-provider" {
   lifecycle {
     create_before_destroy = true
   }
+}
+locals {
+  https_cert_domain_validation_options = (var.route53_enabled && var.ha_high_availability_enabled && (
+    (var.ha_public_load_balancer.enabled && var.ha_public_load_balancer.ssl_cert.use_amazon_provider)
+    || (var.ha_private_load_balancer.enabled && var.ha_private_load_balancer.ssl_cert.use_amazon_provider))
+  ) ? aws_acm_certificate.prpl-amazon-provider[0].domain_validation_options : []
+}
+resource "aws_route53_record" "prpl-amazon-provider-https-cert-validation" {
+  for_each = {
+    # for dvo in aws_acm_certificate.prpl-amazon-provider.domain_validation_options : dvo.domain_name => {
+    for dvo in local.https_cert_domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 60
+  type            = each.value.type
+  zone_id         = var.route53_public_hosted_zone_id
+}
+resource "aws_acm_certificate_validation" "prpl-amazon-provider" {
+  count = (var.route53_enabled && var.ha_high_availability_enabled && (
+    (var.ha_public_load_balancer.enabled && var.ha_public_load_balancer.ssl_cert.use_amazon_provider)
+    || (var.ha_private_load_balancer.enabled && var.ha_private_load_balancer.ssl_cert.use_amazon_provider))
+  ) ? 1 : 0
+  certificate_arn         = aws_acm_certificate.prpl-amazon-provider[0].arn
+  validation_record_fqdns = [for record in aws_route53_record.prpl-amazon-provider-https-cert-validation : record.fqdn]
+}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Route53 DNS for the Load Balancers
+# ---------------------------------------------------------------------------------------------------------------------
+data "aws_alb" "application-load-balancer-public" {
+  count = (var.ha_high_availability_enabled && var.ha_public_load_balancer.enabled) ? 1 : 0
+  arn   = var.ha_public_load_balancer.arn
+}
+resource "aws_route53_record" "prpl-amazon-provider-public-dns" {
+  count           = (var.route53_enabled && var.ha_high_availability_enabled && var.ha_public_load_balancer.enabled) ? 1 : 0
+  allow_overwrite = true
+  name            = var.ha_public_load_balancer.hostname_fqdn
+  records         = [data.aws_alb.application-load-balancer-public[0].dns_name]
+  ttl             = 60
+  type            = "CNAME"
+  zone_id         = var.route53_public_hosted_zone_id
+}
+# If Public ALB and no Private ALB then use Public ALB DNS on the PrivateHZ (otherwise DNS resolution will fail)
+resource "aws_route53_record" "prpl-amazon-provider-private-dns-for-public-alb" {
+  count = (var.route53_enabled && var.ha_high_availability_enabled
+    && var.ha_public_load_balancer.enabled
+    && var.ha_private_load_balancer.enabled == false
+  ) ? 1 : 0
+  allow_overwrite = true
+  name            = var.ha_public_load_balancer.hostname_fqdn
+  records         = [data.aws_alb.application-load-balancer-public[0].dns_name]
+  ttl             = 60
+  type            = "CNAME"
+  zone_id         = var.route53_private_hosted_zone_id
+}
+# For Private ALB
+data "aws_alb" "application-load-balancer-private" {
+  count = (var.route53_enabled && var.ha_high_availability_enabled && var.ha_private_load_balancer.enabled) ? 1 : 0
+  arn   = var.ha_private_load_balancer.arn
+}
+resource "aws_route53_record" "prpl-amazon-provider-private-dns-for-private-alb" {
+  count           = (var.route53_enabled && var.ha_high_availability_enabled && var.ha_private_load_balancer.enabled) ? 1 : 0
+  allow_overwrite = true
+  name            = var.ha_private_load_balancer.hostname_fqdn
+  records         = [data.aws_alb.application-load-balancer-private[0].dns_name]
+  ttl             = 60
+  type            = "CNAME"
+  zone_id         = var.route53_private_hosted_zone_id
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -71,7 +145,7 @@ resource "aws_lb_target_group" "prpl-public-https" {
   name                 = local.aws_lb_target_group_public_truncated_names_https
   target_type          = "instance"
   port                 = var.server_listening_port
-  protocol             = "HTTP"
+  protocol             = "HTTPS"
   vpc_id               = var.vpc.vpc_id
   deregistration_delay = 0
   health_check {
@@ -79,7 +153,7 @@ resource "aws_lb_target_group" "prpl-public-https" {
     unhealthy_threshold = 8
     interval            = 30
     protocol            = "HTTP"
-    path                = "/"
+    path                = "/health"
     port                = var.server_listening_port
   }
 }
@@ -129,7 +203,7 @@ resource "aws_lb_target_group" "prpl-private-https" {
   name                 = local.aws_lb_target_group_private_truncated_names_https
   target_type          = "instance"
   port                 = var.server_listening_port
-  protocol             = "HTTP"
+  protocol             = "HTTPS"
   vpc_id               = var.vpc.vpc_id
   deregistration_delay = 0
   health_check {
@@ -137,7 +211,7 @@ resource "aws_lb_target_group" "prpl-private-https" {
     unhealthy_threshold = 8
     interval            = 30
     protocol            = "HTTP"
-    path                = "/"
+    path                = "/health"
     port                = var.server_listening_port
   }
 }

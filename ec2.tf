@@ -32,16 +32,20 @@ resource "aws_instance" "prpl" {
     domain_login_allowed_groups        = join(",", var.domain_login_allowed_groups[*])
     domain_login_allowed_users         = join(",", var.domain_login_allowed_users[*])
 
-    aws_efs_id                                   = (var.disk_prpl_home.enabled && var.disk_prpl_home.type == "EFS") ? aws_efs_file_system.prpl-home-efs[0].id : ""
-    ebs_device_name                              = (var.disk_prpl_home.enabled && var.disk_prpl_home.type == "EBS") ? "/dev/nvme1n1" : ""
-    aws_asg_name                                 = ""
-    check_efs_asg_max_attempts                   = var.ha_auto_scaling_group.check_efs_asg_max_attempts
-    prpl_linux_user_name                         = var.prpl_linux_user_name
-    prpl_linux_user_group                        = var.prpl_linux_user_group
-    prpl_user_ssh_public_key                     = var.prpl_user_ssh_public_key
+    aws_efs_id                 = (var.disk_prpl_home.enabled && var.disk_prpl_home.type == "EFS") ? aws_efs_file_system.prpl-home-efs[0].id : ""
+    ebs_device_name            = (var.disk_prpl_home.enabled && var.disk_prpl_home.type == "EBS") ? "/dev/nvme1n1" : ""
+    aws_asg_name               = ""
+    check_efs_asg_max_attempts = var.ha_auto_scaling_group.check_efs_asg_max_attempts
+    prpl_linux_user_name       = var.prpl_linux_user_name
+    prpl_linux_user_group      = var.prpl_linux_user_group
+    prpl_user_ssh_public_key   = var.prpl_user_ssh_public_key
     // prpl_config_s3_bucket_name                   = aws_s3_bucket.prpl-config-files.bucket
     prpl_db_admin_user_password_secret_id        = var.prpl_db_admin_user_password_secret_id
     prpl_admin_user_password_secret_id           = var.prpl_admin_user_password_secret_id
+    db_hostname                                  = (var.database.type == "RDS") ? aws_db_instance.prpl[0].endpoint : var.database.db_hostname
+    db_prpl_database_name                        = var.database.db_prpl_database_name
+    db_prpl_username                             = var.database.db_prpl_username
+    db_prpl_password_secret_id                   = var.database.db_prpl_password_secret_id
     cloudwatch_enabled                           = var.cloudwatch_enabled ? "TRUE" : "FALSE"
     cloudwatch_refresh_interval_secs             = var.cloudwatch_refresh_interval_secs
     telegraf_enabled                             = var.telegraf_enabled ? "TRUE" : "FALSE"
@@ -57,5 +61,5 @@ resource "aws_instance" "prpl" {
     Application     = "prpl"
     ApplicationName = var.name_suffix
   })
-  depends_on = [aws_efs_mount_target.prpl-home-efs, aws_efs_file_system.prpl-home-efs] # , aws_s3_bucket_object.prpl-config-files-upload]
+  depends_on = [aws_efs_mount_target.prpl-home-efs, aws_efs_file_system.prpl-home-efs, aws_db_instance.prpl] # , aws_s3_bucket_object.prpl-config-files-upload]
 }
